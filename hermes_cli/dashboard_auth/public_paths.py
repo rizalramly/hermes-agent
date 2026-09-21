@@ -57,4 +57,9 @@ PUBLIC_API_PATHS: frozenset[str] = frozenset({
     # the NAS relay's bearer-only callback reaches the verifier instead of a
     # 401 no_cookie. The JWT — not this allowlist — is the security boundary.
     "/api/cron/fire",
+    # Inbound WhatsApp webhook from the bridge — authenticated by its own HMAC
+    # signature (X-Webhook-Signature-V2 / X-Webhook-Timestamp headers), not by
+    # dashboard cookie. Must bypass the OAuth gate so the bridge can POST without
+    # a browser session. The HMAC secret is the security boundary.
+    "/api/webhooks/whatsapp",
 })

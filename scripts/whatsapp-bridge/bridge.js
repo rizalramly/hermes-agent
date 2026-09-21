@@ -30,7 +30,7 @@ import { randomBytes, createHash } from 'crypto';
 import { execFileSync } from 'child_process';
 import { tmpdir } from 'os';
 import qrcode from 'qrcode-terminal';
-import { matchesAllowedUser, parseAllowedUsers } from './allowlist.js';
+import { checkApiAllowedUser } from './allowlist.js';
 import { createOutboundIdTracker } from './outbound_ids.js';
 import { classifyOwnerMessageGate } from './owner_message_gate.js';
 import {
@@ -112,7 +112,7 @@ const PAIR_ONLY = args.includes('--pair-only');
 const PAIR_JSON = args.includes('--pair-json');
 const WHATSAPP_MODE = getArg('mode', process.env.WHATSAPP_MODE || 'self-chat'); // "bot" or "self-chat"
 const WHATSAPP_DM_POLICY = String(process.env.WHATSAPP_DM_POLICY || 'open').trim().toLowerCase();
-const ALLOWED_USERS = parseAllowedUsers(process.env.WHATSAPP_ALLOWED_USERS || '');
+// API-based allowlist: check registered_contacts status via multi-agent API
 const DEFAULT_REPLY_PREFIX = '⚕ *Hermes Agent*\n────────────\n';
 const REPLY_PREFIX = process.env.WHATSAPP_REPLY_PREFIX === undefined
   ? DEFAULT_REPLY_PREFIX
@@ -583,7 +583,7 @@ async function startSocket() {
             fromMe: true,
             fromOwnerEnabled: FORWARD_OWNER_MESSAGES,
             recentlySent: recentlySentIds,
-            allowlistMatches: (id) => matchesAllowedUser(id, ALLOWED_USERS, SESSION_DIR),
+            allowlistMatches: (id) => checkApiAllowedUser(id, SESSION_DIR),
             messageId: msg.key.id,
             chatId,
           });
@@ -646,7 +646,7 @@ async function startSocket() {
           } catch {}
           continue;
         }
-        if (WHATSAPP_DM_POLICY !== 'pairing' && !matchesAllowedUser(senderId, ALLOWED_USERS, SESSION_DIR)) {
+        if (WHATSAPP_DM_POLICY !== 'pairing' && !(await checkApiAllowedUser(senderId, SESSION_DIR))) {
           try {
             console.log(JSON.stringify({
               event: 'ignored',
@@ -1135,17 +1135,7 @@ if (PAIR_ONLY) {
   app.listen(PORT, '127.0.0.1', () => {
     console.log(`🌉 WhatsApp bridge listening on port ${PORT} (mode: ${WHATSAPP_MODE})`);
     console.log(`📁 Session stored in: ${SESSION_DIR}`);
-    if (ALLOWED_USERS.size > 0) {
-      console.log(`🔒 Allowed users: ${Array.from(ALLOWED_USERS).join(', ')}`);
-    } else if (WHATSAPP_MODE === 'self-chat') {
-      console.log(`🔒 Self-chat mode — only your own messages to yourself are processed.`);
-    } else if (WHATSAPP_MODE === 'bot' && WHATSAPP_DM_POLICY === 'pairing') {
-      console.log(`🤝 WHATSAPP_DM_POLICY=pairing — unknown DMs are forwarded for gateway pairing.`);
-    } else {
-      console.log(`🔒 No WHATSAPP_ALLOWED_USERS set — incoming messages are rejected.`);
-      console.log(`   Set WHATSAPP_ALLOWED_USERS=<phone> to authorize specific users,`);
-      console.log(`   or WHATSAPP_ALLOWED_USERS=* for an explicit open bot.`);
-    }
+    console.log(`🔒 Allowlist: DB-gated via multi-agent API (/contacts/validate/)`);
     if (WHATSAPP_MODE === 'bot' && FORWARD_OWNER_MESSAGES) {
       console.log(`👤 WHATSAPP_FORWARD_OWNER_MESSAGES=true — owner-typed messages will be forwarded with fromOwner:true`);
     }

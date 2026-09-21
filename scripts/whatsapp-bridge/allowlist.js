@@ -86,3 +86,22 @@ export function matchesAllowedUser(senderId, allowedUsers, sessionDir) {
 
   return false;
 }
+
+// Check if a sender is registered via the multi-agent API endpoint.
+// This replaces the static allowlist with dynamic DB-based validation.
+export async function checkApiAllowedUser(senderId, sessionDir) {
+  const cleanNumber = normalizeWhatsAppIdentifier(senderId);
+  if (!cleanNumber) return false;
+
+  // Try the API validation endpoint
+  try {
+    const apiUrl = process.env.HERMES_API_URL || 'http://127.0.0.1:8020';
+    const url = `${apiUrl}/contacts/validate/${cleanNumber}`;
+    const resp = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    const data = await resp.json();
+    return data.allowed === true;
+  } catch (err) {
+    console.warn(`[allowlist] API check failed for ${cleanNumber}: ${err.message}`);
+    return false;
+  }
+}
