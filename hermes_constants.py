@@ -796,8 +796,24 @@ def display_hermes_home() -> str:
         return str(home)
 
 
+def private_mode(mode: int) -> int:
+    """The "owner-only" mode Hermes tightens secrets to, widened to the group
+    when ``HERMES_PRIVATE_GROUP=1``.
+
+    For a service account whose group holds only that account, the group bits
+    grant nobody extra — but they ARE the POSIX ACL mask, so a plain 0o700/0o600
+    silently disables every ACL entry (e.g. an operator's read/write grant on
+    the Hermes home). With the setting, 0o700 → 0o770 and 0o600 → 0o660;
+    "other" stays 0 either way. (TNB deployment, 13 Oct 2026.)
+    """
+    if os.environ.get("HERMES_PRIVATE_GROUP") == "1":
+        return mode | ((mode & 0o700) >> 3)
+    return mode
+
+
 def secure_parent_dir(path: Path) -> None:
     """Chmod ``0o700`` on the parent directory of *path*, but only if safe.
+    (``0o770`` with ``HERMES_PRIVATE_GROUP=1`` — see :func:`private_mode`.)
 
     Refuses to chmod ``/`` or any top-level directory (resolved parent with
     fewer than 3 parts, i.e. ``/`` or any direct child like ``/usr``) to
@@ -811,7 +827,7 @@ def secure_parent_dir(path: Path) -> None:
     if parent == Path("/") or len(parent.parts) < 3:
         return
     try:
-        os.chmod(parent, 0o700)
+        os.chmod(parent, private_mode(0o700))
     except OSError:
         pass
 

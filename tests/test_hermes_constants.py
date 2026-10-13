@@ -666,3 +666,29 @@ class TestWslPathTranslation:
         assert hermes_constants.translate_cwd_for_wsl_backend(r"\\wsl.localhost\Ubuntu\home\alex") == "/home/alex"
         # Already-POSIX paths pass through untouched.
         assert hermes_constants.translate_cwd_for_wsl_backend("/home/alex") == "/home/alex"
+
+
+class TestPrivateGroupMode:
+    """HERMES_PRIVATE_GROUP=1 keeps the group bits (= the POSIX ACL mask)."""
+
+    def test_default_is_owner_only(self, monkeypatch):
+        from hermes_constants import private_mode
+        monkeypatch.delenv("HERMES_PRIVATE_GROUP", raising=False)
+        assert private_mode(0o700) == 0o700 and private_mode(0o600) == 0o600
+
+    def test_group_widened_other_never(self, monkeypatch):
+        from hermes_constants import private_mode
+        monkeypatch.setenv("HERMES_PRIVATE_GROUP", "1")
+        assert private_mode(0o700) == 0o770 and private_mode(0o600) == 0o660
+
+    def test_secure_parent_dir_honours_it(self, tmp_path, monkeypatch):
+        import stat as _stat
+        from hermes_constants import secure_parent_dir
+        d = tmp_path / "a" / "home"
+        d.mkdir(parents=True)
+        monkeypatch.setenv("HERMES_PRIVATE_GROUP", "1")
+        secure_parent_dir(d / "auth.json")
+        assert _stat.S_IMODE(d.stat().st_mode) == 0o770
+        monkeypatch.delenv("HERMES_PRIVATE_GROUP")
+        secure_parent_dir(d / "auth.json")
+        assert _stat.S_IMODE(d.stat().st_mode) == 0o700

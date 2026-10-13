@@ -529,10 +529,11 @@ def _secure_dir(path: Path):
 
 
 def _secure_file(path: Path):
-    """Set file to owner-only read/write (0600). No-op on Windows."""
+    """Set file to owner-only read/write (0600; 0660 with HERMES_PRIVATE_GROUP=1). No-op on Windows."""
     try:
         if path.exists():
-            os.chmod(path, 0o600)
+            from hermes_constants import private_mode
+            os.chmod(path, private_mode(0o600))
     except (OSError, NotImplementedError):
         pass
 
