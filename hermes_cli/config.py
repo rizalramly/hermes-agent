@@ -832,7 +832,8 @@ def _secure_file(path):
         return
     try:
         if os.path.exists(str(path)):
-            os.chmod(path, 0o600)
+            from hermes_constants import private_mode
+            os.chmod(path, private_mode(0o600))
     except (OSError, NotImplementedError):
         pass
 
