@@ -521,9 +521,10 @@ def effective_job_state(job: Dict[str, Any]) -> str:
 
 
 def _secure_dir(path: Path):
-    """Set directory to owner-only access (0700). No-op on Windows."""
+    """Set directory to owner-only access (0700; 0770 with HERMES_PRIVATE_GROUP=1). No-op on Windows."""
     try:
-        os.chmod(path, 0o700)
+        from hermes_constants import private_mode
+        os.chmod(path, private_mode(0o700))
     except (OSError, NotImplementedError):
         pass  # Windows or other platforms where chmod is not supported
 
