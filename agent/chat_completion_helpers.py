@@ -2205,6 +2205,25 @@ def try_activate_fallback(agent, reason: "FailoverReason | None" = None) -> bool
                 # timeout takes effect on the very next fallback request,
                 # not only after a later credential-rotation rebuild.
                 agent._replace_primary_openai_client(reason="fallback_timeout_apply")
+            # tnb: the kwargs rebuilt above drop the endpoint's TLS settings, so
+            # request clients built from them (streaming) verified a fallback to
+            # an internal endpoint against the default CA store and failed
+            # (custom_providers ssl_verify: false ignored). Re-derive them from
+            # custom_providers for the fallback URL, as credential rotation does.
+            try:
+                from hermes_cli.config import (
+                    apply_custom_provider_tls_to_client_kwargs,
+                    get_compatible_custom_providers,
+                    load_config_readonly,
+                )
+
+                apply_custom_provider_tls_to_client_kwargs(
+                    agent._client_kwargs,
+                    fb_base_url,
+                    get_compatible_custom_providers(load_config_readonly()),
+                )
+            except Exception:
+                logger.debug("fallback: custom-provider TLS resolution skipped", exc_info=True)
 
         from agent.agent_runtime_helpers import sync_credential_pool_entry_id
         sync_credential_pool_entry_id(agent)
